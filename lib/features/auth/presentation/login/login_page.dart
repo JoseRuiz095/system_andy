@@ -41,36 +41,42 @@ class _LoginScreenState extends State<LoginScreen> {
           Positioned(
             top: -100,
             left: -100,
-            child: Container(
+            child: SizedBox(
               width: 400,
               height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.secondaryContainer.withOpacity(0.2),
-                boxShadow: [
-                  BoxShadow(
-                      color: AppTheme.secondaryContainer.withOpacity(0.2),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.secondaryContainer.withValues(alpha: 0.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.secondaryContainer.withValues(alpha: 0.2),
                       blurRadius: 100,
-                      spreadRadius: 50),
-                ],
+                      spreadRadius: 50,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
           Positioned(
             bottom: -200,
             right: -200,
-            child: Container(
+            child: SizedBox(
               width: 500,
               height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primaryFixed.withOpacity(0.1),
-                boxShadow: [
-                  BoxShadow(
-                      color: AppTheme.primaryFixed.withOpacity(0.1),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primaryFixed.withValues(alpha: 0.1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryFixed.withValues(alpha: 0.1),
                       blurRadius: 100,
-                      spreadRadius: 50),
-                ],
+                      spreadRadius: 50,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -86,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Logo & Brand Identity
-                    Container(
+                    SizedBox(
                       width: 120,
                       height: 120,
                       child: SvgPicture.asset(
@@ -95,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    const Text(
                       'Moka Manager',
                       style: TextStyle(
                         fontSize: 28,
@@ -105,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
+                    const Text(
                       'Tu rinconcito de control y café.',
                       style: TextStyle(
                         fontSize: 14,
@@ -135,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Username Field
-                          Text(
+                          const Text(
                             'Usuario o Correo electrónico',
                             style: TextStyle(
                                 fontSize: 14,
@@ -146,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           TextField(
                             decoration: InputDecoration(
                               hintText: 'Ingrese su usuario',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
                                   color: AppTheme.hintTextColor,
                                   fontWeight: FontWeight.w500),
                               filled: true,
@@ -159,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
                               ),
-                              suffixIcon: Icon(Icons.person_outline,
+                              suffixIcon: const Icon(Icons.person_outline,
                                   color: AppTheme.outline),
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 16),
@@ -168,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 20),
 
                           // Password Field
-                          Row(
+                          const Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
@@ -192,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
                               hintText: '••••••••',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
                                   color: AppTheme.hintTextColor,
                                   fontWeight: FontWeight.w500),
                               filled: true,
@@ -240,8 +246,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   activeColor: AppTheme.primary,
                                   fillColor:
                                       WidgetStateProperty.resolveWith((states) {
-                                    if (states.contains(WidgetState.selected))
+                                    if (states.contains(WidgetState.selected)) {
                                       return AppTheme.primary;
+                                    }
                                     return AppTheme.surfaceContainerHighest;
                                   }),
                                   shape: RoundedRectangleBorder(
@@ -250,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(
+                              const Expanded(
                                 child: Text(
                                   'Mantener la sesión iniciada por el día',
                                   style: TextStyle(
@@ -269,15 +276,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceContainerLow,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border(
+                              border: const Border(
                                   left: BorderSide(
                                       color: AppTheme.primary, width: 4)),
                             ),
-                            child: Row(
+                            child: const Row(
                               children: [
                                 Icon(Icons.verified_user_outlined,
                                     color: AppTheme.primary, size: 20),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -334,9 +341,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12)),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
+                                children: [
                                   Text(
                                     'Acceder al sistema',
                                     style: TextStyle(
@@ -359,8 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.terminal_outlined,
-                            size: 12,
-                            color: AppTheme.secondary.withOpacity(0.6)),
+                          size: 12,
+                          color: AppTheme.secondary.withValues(alpha: 0.6)),
                         const SizedBox(width: 6),
                         Text(
                           'V1.0 ANDY\'S COFFEE',
@@ -368,19 +375,19 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
-                              color: AppTheme.secondary.withOpacity(0.6)),
+                              color: AppTheme.secondary.withValues(alpha: 0.6)),
                         ),
                         const SizedBox(width: 16),
                         Container(
                             width: 3,
                             height: 3,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                                 color: AppTheme.outline,
                                 shape: BoxShape.circle)),
                         const SizedBox(width: 16),
                         Icon(Icons.lock_outline,
                             size: 12,
-                            color: AppTheme.secondary.withOpacity(0.6)),
+                            color: AppTheme.secondary.withValues(alpha: 0.6)),
                         const SizedBox(width: 6),
                         Text(
                           'SSL ENCRYPTED',
@@ -388,7 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
-                              color: AppTheme.secondary.withOpacity(0.6)),
+                              color: AppTheme.secondary.withValues(alpha: 0.6)),
                         ),
                       ],
                     ),
