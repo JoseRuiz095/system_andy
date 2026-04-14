@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:system_andy/features/ventas/presentation/pages/ventas_page.dart';
+import 'package:system_andy/features/layout/main/main_panel_section.dart';
+import 'package:system_andy/features/layout/main/mainpanel.dart';
 import 'package:system_andy/features/auth/presentation/login/login_page.dart';
 import 'package:system_andy/features/auth/presentation/register/register_page.dart';
 import 'package:system_andy/features/auth/application/auth_session_controller.dart';
@@ -8,6 +9,7 @@ import 'package:system_andy/features/auth/application/auth_session_controller.da
 
 class AppRoutes {
   static const String home = '/';
+  static const String mainPanel = '/main';
   static const String login = '/login';
   static const String register = '/register';
   static const String ventas = '/ventas';
@@ -19,8 +21,10 @@ class AppRoutes {
 
     switch (settings.name) {
       case home:
-        targetPage =
-            const Scaffold(body: Center(child: Text('Pagina de inicio')));
+        targetPage = const MainPanel();
+        break;
+      case mainPanel:
+        targetPage = const MainPanel();
         break;
       case login:
         targetPage = const LoginPage();
@@ -29,7 +33,7 @@ class AppRoutes {
         targetPage = const RegisterPage();
         break;
       case ventas:
-        targetPage = const VentasPage();
+        targetPage = const MainPanel(initialSection: MainPanelSection.ventas);
         break;
       // case ...
       default:
@@ -66,7 +70,7 @@ class _RouteGate extends ConsumerWidget {
     }
 
     if (authState.isAuthenticated && isPublicRoute) {
-      return const VentasPage();
+      return const MainPanel();
     }
 
     return child;

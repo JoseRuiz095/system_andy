@@ -125,7 +125,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
 
     Navigator.of(context)
-        .pushNamedAndRemoveUntil(AppRoutes.ventas, (r) => false);
+      .pushNamedAndRemoveUntil(AppRoutes.mainPanel, (r) => false);
   }
 
   @override

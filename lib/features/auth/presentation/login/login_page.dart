@@ -46,7 +46,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     Navigator.of(context)
-        .pushNamedAndRemoveUntil(AppRoutes.ventas, (r) => false);
+        .pushNamedAndRemoveUntil(AppRoutes.mainPanel, (r) => false);
   }
 
   @override

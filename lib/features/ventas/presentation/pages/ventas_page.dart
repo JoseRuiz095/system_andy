@@ -1,35 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:system_andy/config/routes.dart';
-import 'package:system_andy/features/auth/application/auth_session_controller.dart';
-import 'package:system_andy/features/auth/presentation/login/login_page.dart';
+import 'package:system_andy/features/ventas/presentation/widgets/ventas_category_bar.dart';
+import 'package:system_andy/features/ventas/presentation/widgets/ventas_order_panel.dart';
+import 'package:system_andy/features/ventas/presentation/widgets/ventas_product_bento_grid.dart';
 
-class VentasPage extends ConsumerWidget {
+class VentasPage extends StatelessWidget {
   const VentasPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authSessionProvider);
-    if (!authState.isAuthenticated) {
-      return const LoginPage();
-    }
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showOrderPanel = constraints.maxWidth >= 1080;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ventas'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ref.read(authSessionProvider.notifier).logout();
-              Navigator.of(context)
-                  .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
-            },
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesion',
-          ),
-        ],
-      ),
-      body: const Center(child: Text('Página de Ventas')),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: showOrderPanel ? 8 : 1,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const VentasCategoryBar(),
+                    const SizedBox(height: 16),
+                    const VentasProductBentoGrid(),
+                    if (!showOrderPanel) ...[
+                      const SizedBox(height: 16),
+                      const VentasOrderPanel(compact: true),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (showOrderPanel) ...[
+              const SizedBox(width: 16),
+              const SizedBox(
+                width: 360,
+                child: VentasOrderPanel(compact: false),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
