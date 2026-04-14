@@ -13,11 +13,19 @@ dependencies:
   http: ^1.2.0
   cupertino_icons: ^1.0.2
   flutter_svg: ^2.2.4
+  drift: ^2.21.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  uuid: ^4.5.1
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  drift_dev: ^2.21.2
+  build_runner: ^2.4.13
 
 flutter:
   uses-material-design: true

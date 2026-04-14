@@ -1,43 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:system_andy/config/routes.dart';
 import 'package:system_andy/core/theme/app_theme.dart';
+import 'package:system_andy/features/auth/application/auth_session_controller.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Andys Coffee - Login',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily:
-            'Inter', // Asegúrate de agregarlo en pubspec.yaml si quieres la fuente exacta
-      ),
-      home: const LoginScreen(),
-    );
-  }
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class _LoginPageState extends ConsumerState<LoginPage> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _rememberMe = false;
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final result = ref.read(authSessionProvider.notifier).login(
+          emailOrUser: _emailController.text,
+          password: _passwordController.text,
+        );
+
+    if (!mounted) return;
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message ?? 'No se pudo iniciar sesion.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(AppRoutes.ventas, (r) => false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authSessionProvider);
+
     return Scaffold(
       backgroundColor: AppTheme.surfaceContainerLow,
       body: Stack(
         children: [
-          // Elementos orgánicos decorativos (Fondo)
           Positioned(
             top: -100,
             left: -100,
@@ -80,18 +99,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-
-          // Contenido principal - Pantalla estática sin scroll
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(24),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Logo & Brand Identity
                     SizedBox(
                       width: 120,
                       height: 120,
@@ -112,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Tu rinconcito de control y café.',
+                      'Tu rinconcito de control y cafe.',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -120,8 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Login Card
                     Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
@@ -133,28 +147,30 @@ class _LoginScreenState extends State<LoginScreen> {
                             blurRadius: 64,
                             spreadRadius: -12,
                             offset: Offset(0, 32),
-                          )
+                          ),
                         ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Username Field
                           const Text(
-                            'Usuario o Correo electrónico',
+                            'Usuario o Correo electronico',
                             style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.tertiary),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.tertiary,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           TextField(
+                            controller: _emailController,
                             decoration: InputDecoration(
-                              hintText: 'Ingrese su usuario',
+                              hintText: 'admin@andys.cafe',
                               hintStyle: const TextStyle(
-                                  color: AppTheme.hintTextColor,
-                                  fontWeight: FontWeight.w500),
+                                color: AppTheme.hintTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
                               filled: true,
                               fillColor: AppTheme.surfaceContainerHighest,
                               border: OutlineInputBorder(
@@ -165,42 +181,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
                               ),
-                              suffixIcon: const Icon(Icons.person_outline,
-                                  color: AppTheme.outline),
+                              suffixIcon: const Icon(
+                                Icons.person_outline,
+                                color: AppTheme.outline,
+                              ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
-
-                          // Password Field
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Contraseña',
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.tertiary),
-                              ),
-                              Text(
-                                'Olvidaste tu contraseña?',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppTheme.tertiary),
-                              ),
-                            ],
+                          const Text(
+                            'Contrasena',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.tertiary,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           TextField(
+                            controller: _passwordController,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
                               hintText: '••••••••',
                               hintStyle: const TextStyle(
-                                  color: AppTheme.hintTextColor,
-                                  fontWeight: FontWeight.w500),
+                                color: AppTheme.hintTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
                               filled: true,
                               fillColor: AppTheme.surfaceContainerHighest,
                               border: OutlineInputBorder(
@@ -225,12 +234,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 16),
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
-
-                          // Remember Me Checkbox
                           Row(
                             children: [
                               SizedBox(
@@ -244,102 +253,71 @@ class _LoginScreenState extends State<LoginScreen> {
                                     });
                                   },
                                   activeColor: AppTheme.primary,
-                                  fillColor:
-                                      WidgetStateProperty.resolveWith((states) {
-                                    if (states.contains(WidgetState.selected)) {
-                                      return AppTheme.primary;
-                                    }
-                                    return AppTheme.surfaceContainerHighest;
-                                  }),
+                                  fillColor: WidgetStateProperty.resolveWith(
+                                    (states) {
+                                      if (states
+                                          .contains(WidgetState.selected)) {
+                                        return AppTheme.primary;
+                                      }
+                                      return AppTheme.surfaceContainerHighest;
+                                    },
+                                  ),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4)),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
                                   side: BorderSide.none,
                                 ),
                               ),
                               const SizedBox(width: 12),
                               const Expanded(
                                 child: Text(
-                                  'Mantener la sesión iniciada por el día',
+                                  'Mantener la sesion iniciada por el dia',
                                   style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: AppTheme.tertiary),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.tertiary,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
-
-                          // System State (Message)
+                          const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: AppTheme.surfaceContainerLow,
                               borderRadius: BorderRadius.circular(8),
                               border: const Border(
-                                  left: BorderSide(
-                                      color: AppTheme.primary, width: 4)),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.verified_user_outlined,
-                                    color: AppTheme.primary, size: 20),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Estado del sistema: Operativo',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.primary),
-                                      ),
-                                      Text(
-                                        'Todo funciona correctamente',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            color: AppTheme.tertiary),
-                                      ),
-                                    ],
-                                  ),
+                                left: BorderSide(
+                                  color: AppTheme.primary,
+                                  width: 4,
                                 ),
-                              ],
+                              ),
+                            ),
+                            child: Text(
+                              authState.isLocked
+                                  ? 'Proteccion activa: cuenta bloqueada temporalmente.'
+                                  : 'Estado del sistema: Operativo',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primary,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
-
-                          // Primary Action Button
                           SizedBox(
                             width: double.infinity,
-                            height: 64,
+                            height: 56,
                             child: ElevatedButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text('Inicio de sesión exitoso, bonito dia :)'),
-                                    duration:
-                                        const Duration(milliseconds: 2000),
-                                    width: 260.0,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8.0,
-                                      vertical: 12.0,
-                                    ),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10.0),
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: authState.isLocked ? null : _submit,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primary,
                                 foregroundColor: AppTheme.onPrimary,
                                 elevation: 4,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -347,8 +325,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Text(
                                     'Acceder al sistema',
                                     style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                   SizedBox(width: 8),
                                   Icon(Icons.arrow_forward),
@@ -356,48 +335,27 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .pushNamed(AppRoutes.register);
+                              },
+                              child: const Text('Crear cuenta nueva'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // Footer / Version Info
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.terminal_outlined,
-                          size: 12,
-                          color: AppTheme.secondary.withValues(alpha: 0.6)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'V1.0 ANDY\'S COFFEE',
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                              color: AppTheme.secondary.withValues(alpha: 0.6)),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                            width: 3,
-                            height: 3,
-                            decoration: const BoxDecoration(
-                                color: AppTheme.outline,
-                                shape: BoxShape.circle)),
-                        const SizedBox(width: 16),
-                        Icon(Icons.lock_outline,
-                            size: 12,
-                            color: AppTheme.secondary.withValues(alpha: 0.6)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'SSL ENCRYPTED',
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                              color: AppTheme.secondary.withValues(alpha: 0.6)),
-                        ),
-                      ],
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Demo: admin@andys.cafe / Admin123!',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.secondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
