@@ -130,6 +130,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 600;
+    final isLarge = screenWidth >= 1200;
+
+    final horizontalPadding = isCompact
+        ? 16.0
+        : isLarge
+            ? 40.0
+            : 24.0;
+    final verticalPadding = isCompact ? 16.0 : 24.0;
+    final maxContentWidth = screenWidth >= 1800
+        ? 1280.0
+        : screenWidth >= 1400
+            ? 1120.0
+            : 920.0;
+    final logoSize = isCompact ? 96.0 : 120.0;
+    final cardPadding = isCompact
+        ? const EdgeInsets.all(18)
+        : isLarge
+            ? const EdgeInsets.all(36)
+            : const EdgeInsets.all(32);
+
     return Scaffold(
       backgroundColor: AppTheme.surfaceContainerLow,
       body: Stack(
@@ -176,274 +198,295 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
             ),
           ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 920),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 120,
-                      height: 120,
-                      child: SvgPicture.asset(
-                        'lib/core/theme/images/AndysVector.svg',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Moka Manager',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Tu rinconcito de control y cafe.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.secondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceContainerLowest,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color.fromRGBO(48, 50, 33, 0.06),
-                            blurRadius: 64,
-                            spreadRadius: -12,
-                            offset: Offset(0, 32),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, viewport) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxContentWidth),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: logoSize,
+                            height: logoSize,
+                            child: SvgPicture.asset(
+                              'lib/core/theme/images/AndysVector.svg',
+                              fit: BoxFit.contain,
+                            ),
                           ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Moka Manager',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.primary,
+                              letterSpacing: -0.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Tu rinconcito de control y cafe.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.secondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: cardPadding,
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color.fromRGBO(48, 50, 33, 0.06),
+                                  blurRadius: 64,
+                                  spreadRadius: -12,
+                                  offset: Offset(0, 32),
+                                ),
+                              ],
+                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final useTwoColumns =
+                                    constraints.maxWidth >= 860;
+
+                                final leftColumn = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Crear cuenta',
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppTheme.primary,
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Configura tu perfil para acceder al sistema POS.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.secondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _buildTextField(
+                                      label: 'Nombre completo',
+                                      hint: 'Juan Pérez',
+                                      controller: _fullNameController,
+                                      prefixIcon: Icons.person_outline,
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _buildTextField(
+                                      label: 'Correo laboral',
+                                      hint: 'nombre@andys.cafe.com',
+                                      controller: _emailController,
+                                      prefixIcon: Icons.mail_outline,
+                                      keyboardType: TextInputType.emailAddress,
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _buildTextField(
+                                      label: 'Contraseña',
+                                      hint: '••••••••',
+                                      controller: _passwordController,
+                                      obscureText: _obscurePassword,
+                                      onChanged: (_) => setState(() {}),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          color: AppTheme.outline,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscurePassword =
+                                                !_obscurePassword;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _buildTextField(
+                                      label: 'Confirmar contraseña',
+                                      hint: '••••••••',
+                                      controller: _confirmPasswordController,
+                                      obscureText: _obscureConfirmPassword,
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscureConfirmPassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          color: AppTheme.outline,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscureConfirmPassword =
+                                                !_obscureConfirmPassword;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                );
+
+                                final rightColumn = Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Rol',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.tertiary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: StaffRole.values
+                                          .map(
+                                            (role) => Expanded(
+                                              child: Padding(
+                                                padding: EdgeInsets.only(
+                                                  right: role ==
+                                                          StaffRole.values.last
+                                                      ? 0
+                                                      : 8,
+                                                ),
+                                                child: _RoleCard(
+                                                  role: role,
+                                                  selected:
+                                                      role == _selectedRole,
+                                                  onTap: () {
+                                                    setState(
+                                                      () =>
+                                                          _selectedRole = role,
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    _buildSecurityCard(),
+                                    const SizedBox(height: 18),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 56,
+                                      child: ElevatedButton(
+                                        onPressed: _register,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppTheme.primary,
+                                          foregroundColor: AppTheme.onPrimary,
+                                          elevation: 4,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Crear cuenta',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Icon(Icons.arrow_forward),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Center(
+                                      child: TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context)
+                                              .pushNamedAndRemoveUntil(
+                                            AppRoutes.login,
+                                            (route) => false,
+                                          );
+                                        },
+                                        child: const Text('Ya tengo cuenta'),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                                if (!useTwoColumns) {
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      leftColumn,
+                                      const SizedBox(height: 18),
+                                      rightColumn,
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(flex: 11, child: leftColumn),
+                                    const SizedBox(width: 28),
+                                    Expanded(flex: 9, child: rightColumn),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.verified_user_outlined,
+                                size: 12,
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.6),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'REGISTRO SEGURO',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                  color:
+                                      AppTheme.secondary.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: viewport.maxHeight < 760 ? 8 : 0),
                         ],
                       ),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final useTwoColumns = constraints.maxWidth >= 700;
-
-                          final leftColumn = Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Crear cuenta',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppTheme.primary,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Configura tu perfil para acceder al sistema POS.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppTheme.secondary,
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              _buildTextField(
-                                label: 'Nombre completo',
-                                hint: 'Juan Pérez',
-                                controller: _fullNameController,
-                                prefixIcon: Icons.person_outline,
-                              ),
-                              const SizedBox(height: 14),
-                              _buildTextField(
-                                label: 'Correo laboral',
-                                hint: 'nombre@andys.cafe.com',
-                                controller: _emailController,
-                                prefixIcon: Icons.mail_outline,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 14),
-                              _buildTextField(
-                                label: 'Contraseña',
-                                hint: '••••••••',
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                onChanged: (_) => setState(() {}),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: AppTheme.outline,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              _buildTextField(
-                                label: 'Confirmar contraseña',
-                                hint: '••••••••',
-                                controller: _confirmPasswordController,
-                                obscureText: _obscureConfirmPassword,
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscureConfirmPassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: AppTheme.outline,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscureConfirmPassword =
-                                          !_obscureConfirmPassword;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          );
-
-                          final rightColumn = Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Rol',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.tertiary,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: StaffRole.values
-                                    .map(
-                                      (role) => Expanded(
-                                        child: Padding(
-                                          padding: EdgeInsets.only(
-                                            right: role == StaffRole.values.last
-                                                ? 0
-                                                : 8,
-                                          ),
-                                          child: _RoleCard(
-                                            role: role,
-                                            selected: role == _selectedRole,
-                                            onTap: () {
-                                              setState(
-                                                () => _selectedRole = role,
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                              const SizedBox(height: 14),
-                              _buildSecurityCard(),
-                              const SizedBox(height: 18),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: _register,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primary,
-                                    foregroundColor: AppTheme.onPrimary,
-                                    elevation: 4,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Crear cuenta',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Icon(Icons.arrow_forward),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Center(
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context)
-                                        .pushNamedAndRemoveUntil(
-                                      AppRoutes.login,
-                                      (route) => false,
-                                    );
-                                  },
-                                  child: const Text('Ya tengo cuenta'),
-                                ),
-                              ),
-                            ],
-                          );
-
-                          if (!useTwoColumns) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                leftColumn,
-                                const SizedBox(height: 18),
-                                rightColumn,
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: leftColumn),
-                              const SizedBox(width: 20),
-                              Expanded(child: rightColumn),
-                            ],
-                          );
-                        },
-                      ),
                     ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.verified_user_outlined,
-                          size: 12,
-                          color: AppTheme.secondary.withValues(alpha: 0.6),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'REGISTRO SEGURO',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                            color: AppTheme.secondary.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
