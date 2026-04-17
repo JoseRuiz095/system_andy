@@ -39,11 +39,20 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uuid TEXT NOT NULL UNIQUE,
   username TEXT NOT NULL UNIQUE,
+  email TEXT UNIQUE,
   full_name TEXT NOT NULL,
   password_hash TEXT,
   password_algo TEXT NOT NULL DEFAULT 'bcrypt',
   pin_hash TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('active', 'pending', 'blocked')),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+  last_access_at TEXT,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  blocked_at TEXT,
+  password_changed_at TEXT,
+  force_password_change INTEGER NOT NULL DEFAULT 0 CHECK(force_password_change IN (0, 1)),
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0, 1)),
+  two_factor_secret TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT,
@@ -489,12 +498,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   entity_table TEXT NOT NULL,
   row_uuid TEXT NOT NULL,
   action TEXT NOT NULL CHECK(action IN ('insert', 'update', 'delete')),
+  event_action TEXT NOT NULL DEFAULT 'unspecified',
+  module TEXT,
+  description TEXT,
   changed_by_user_id INTEGER,
+  result TEXT NOT NULL DEFAULT 'success',
+  ip_address TEXT,
+  device_info TEXT,
   old_values TEXT,
   new_values TEXT,
   payload_json TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(changed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS security_settings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  value TEXT NOT NULL,
+  description TEXT,
+  updated_by_user_id INTEGER,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS sync_status (
@@ -552,6 +577,12 @@ CREATE INDEX IF NOT EXISTS idx_inventory_movements_branch_product_created ON inv
 CREATE INDEX IF NOT EXISTS idx_cash_movements_branch_moved ON cash_movements(branch_id, moved_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(user_id, is_active, login_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_row ON audit_logs(entity_table, row_uuid, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status, is_active, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_failed_attempts ON users(failed_attempts, blocked_at);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_security ON audit_logs(module, event_action, result, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_settings_key ON security_settings(key);
 CREATE INDEX IF NOT EXISTS idx_sync_status_device ON sync_status(device_id);
 CREATE INDEX IF NOT EXISTS idx_feature_flags_scope ON feature_flags(scope, key);
 CREATE INDEX IF NOT EXISTS idx_sync_outbox_entity ON sync_outbox(entity_type, entity_uuid, created_at DESC);
@@ -577,3 +608,32 @@ VALUES
   ('pm-cash', 'cash', 'Efectivo'),
   ('pm-card', 'card', 'Tarjeta'),
   ('pm-transfer', 'transfer', 'Transferencia');
+
+INSERT OR IGNORE INTO roles (uuid, code, name, description)
+VALUES
+  ('role-admin', 'admin', 'Administrador', 'Acceso total al sistema POS'),
+  ('role-cashier', 'cashier', 'Cajero', 'Operacion de caja y cobro'),
+  ('role-barista', 'barista', 'Barista', 'Operacion de venta basica y producto');
+
+INSERT OR IGNORE INTO permissions (uuid, code, name)
+VALUES
+  ('perm-registrar-venta', 'registrar_venta', 'Registrar venta'),
+  ('perm-procesar-cobro', 'procesar_cobro', 'Procesar cobro'),
+  ('perm-abrir-caja', 'abrir_caja', 'Abrir caja'),
+  ('perm-cerrar-caja', 'cerrar_caja', 'Cerrar caja'),
+  ('perm-ajustar-inventario', 'ajustar_inventario', 'Ajustar inventario'),
+  ('perm-gestionar-productos', 'gestionar_productos', 'Gestionar productos'),
+  ('perm-ver-reportes', 'ver_reportes', 'Ver reportes'),
+  ('perm-cancelar-venta', 'cancelar_venta', 'Cancelar venta'),
+  ('perm-aplicar-descuento', 'aplicar_descuento', 'Aplicar descuento'),
+  ('perm-configurar-sistema', 'configurar_sistema', 'Configurar sistema');
+
+INSERT OR IGNORE INTO security_settings (key, value, description)
+VALUES
+  ('session_expiration_minutes', '480', 'Tiempo maximo de sesion activa'),
+  ('force_password_rotation', 'true', 'Solicitar cambio periodico de contrasena'),
+  ('strong_password_required', 'true', 'Aplicar politica de contrasena fuerte'),
+  ('two_factor_enabled', 'false', 'Activar segundo factor en autenticacion'),
+  ('mask_sensitive_data', 'true', 'Ocultar datos sensibles en pantalla'),
+  ('max_failed_attempts', '5', 'Intentos fallidos antes de bloqueo'),
+  ('lockout_minutes', '15', 'Minutos de bloqueo por seguridad');

@@ -26,8 +26,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  void _submit() {
-    final result = ref.read(authSessionProvider.notifier).login(
+  Future<void> _submit() async {
+    final result = await ref.read(authSessionProvider.notifier).login(
           emailOrUser: _emailController.text,
           password: _passwordController.text,
         );
@@ -310,7 +310,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             width: double.infinity,
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: authState.isLocked ? null : _submit,
+                              onPressed:
+                                  authState.isLocked || authState.isLoading
+                                      ? null
+                                      : _submit,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primary,
                                 foregroundColor: AppTheme.onPrimary,
@@ -319,23 +322,33 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Acceder al sistema',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                              child: authState.isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'Acceder al sistema',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Icon(Icons.arrow_forward),
+                                      ],
                                     ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Icon(Icons.arrow_forward),
-                                ],
-                              ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Center(
                             child: TextButton(
                               onPressed: () {
@@ -346,15 +359,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Demo: admin@andys.cafe / Admin123!',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppTheme.secondary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],

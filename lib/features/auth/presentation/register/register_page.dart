@@ -84,8 +84,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     super.dispose();
   }
 
-  void _register() {
-    final result = ref.read(authSessionProvider.notifier).register(
+  Future<void> _register() async {
+    final result = await ref.read(authSessionProvider.notifier).register(
           fullName: _fullNameController.text,
           email: _emailController.text,
           password: _passwordController.text,
@@ -107,10 +107,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       return;
     }
 
-    final loginResult = ref.read(authSessionProvider.notifier).login(
+    final loginResult = await ref.read(authSessionProvider.notifier).login(
           emailOrUser: _emailController.text,
           password: _passwordController.text,
         );
+
+    if (!mounted) return;
 
     if (!loginResult.success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,11 +127,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
 
     Navigator.of(context)
-      .pushNamedAndRemoveUntil(AppRoutes.mainPanel, (r) => false);
+        .pushNamedAndRemoveUntil(AppRoutes.mainPanel, (r) => false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authSessionProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isCompact = screenWidth < 600;
     final isLarge = screenWidth >= 1200;
@@ -392,7 +395,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                       width: double.infinity,
                                       height: 56,
                                       child: ElevatedButton(
-                                        onPressed: _register,
+                                        onPressed: authState.isLoading
+                                            ? null
+                                            : _register,
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppTheme.primary,
                                           foregroundColor: AppTheme.onPrimary,
@@ -402,21 +407,32 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                                 BorderRadius.circular(12),
                                           ),
                                         ),
-                                        child: const Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              'Crear cuenta',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
+                                        child: authState.isLoading
+                                            ? const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : const Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    'Crear cuenta',
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                  Icon(Icons.arrow_forward),
+                                                ],
                                               ),
-                                            ),
-                                            SizedBox(width: 8),
-                                            Icon(Icons.arrow_forward),
-                                          ],
-                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 12),

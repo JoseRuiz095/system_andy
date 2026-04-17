@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:bcrypt/bcrypt.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
@@ -46,11 +47,27 @@ class Branches extends Table with SyncEntity {
 class Users extends Table with SyncEntity {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get username => text().withLength(min: 3, max: 64).unique()();
+  TextColumn get email => text().nullable().unique()();
   TextColumn get fullName => text().withLength(min: 3, max: 120)();
   TextColumn get passwordHash => text().nullable()();
   TextColumn get passwordAlgo => text().withDefault(const Constant('bcrypt'))();
   TextColumn get pinHash => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get lastAccessAt => dateTime().nullable()();
+  IntColumn get failedAttempts => integer().withDefault(const Constant(0))();
+  DateTimeColumn get blockedAt => dateTime().nullable()();
+  DateTimeColumn get passwordChangedAt => dateTime().nullable()();
+  BoolColumn get forcePasswordChange =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get twoFactorEnabled =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get twoFactorSecret => text().nullable()();
+
+  @override
+  List<String> get customConstraints => [
+        "CHECK(status IN ('active','pending','blocked'))",
+      ];
 }
 
 class Roles extends Table with SyncEntity {
@@ -522,9 +539,16 @@ class AuditLogs extends Table {
   TextColumn get entityTable => text()();
   TextColumn get rowUuid => text()();
   TextColumn get action => text()();
+  TextColumn get eventAction =>
+      text().withDefault(const Constant('unspecified'))();
+  TextColumn get module => text().nullable()();
+  TextColumn get description => text().nullable()();
   IntColumn get changedByUserId => integer()
       .nullable()
       .references(Users, #id, onDelete: KeyAction.setNull)();
+  TextColumn get result => text().withDefault(const Constant('success'))();
+  TextColumn get ipAddress => text().nullable()();
+  TextColumn get deviceInfo => text().nullable()();
   TextColumn get oldValues => text().nullable()();
   TextColumn get newValues => text().nullable()();
   TextColumn get payloadJson => text().nullable()();
@@ -534,6 +558,17 @@ class AuditLogs extends Table {
   List<String> get customConstraints => [
         "CHECK(action IN ('insert','update','delete'))",
       ];
+}
+
+class SecuritySettings extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get key => text().withLength(min: 2, max: 80).unique()();
+  TextColumn get value => text()();
+  TextColumn get description => text().nullable()();
+  IntColumn get updatedByUserId => integer()
+      .nullable()
+      .references(Users, #id, onDelete: KeyAction.setNull)();
+  DateTimeColumn get updatedAt => dateTime().clientDefault(_utcNow)();
 }
 
 class SyncStatus extends Table {
@@ -628,6 +663,7 @@ LazyDatabase _openConnection() {
     CashMovements,
     FolioSequences,
     AuditLogs,
+    SecuritySettings,
     SyncStatus,
     FeatureFlags,
     SyncOutbox,
@@ -638,7 +674,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -646,6 +682,8 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await _createIndexes();
           await _seedCatalogs();
+          await _seedSecurityCatalogs();
+          await _seedSecuritySettings();
         },
         onUpgrade: (Migrator m, int from, int to) async {
           if (from < 3) {
@@ -790,6 +828,29 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
                 'UPDATE cash_movements SET amount = CAST(ROUND(amount * 100.0) AS INTEGER);');
           }
+          if (from < 8) {
+            await m.addColumn(users, users.email);
+            await m.addColumn(users, users.status);
+            await m.addColumn(users, users.lastAccessAt);
+            await m.addColumn(users, users.failedAttempts);
+            await m.addColumn(users, users.blockedAt);
+            await m.addColumn(users, users.passwordChangedAt);
+            await m.addColumn(users, users.forcePasswordChange);
+            await m.addColumn(users, users.twoFactorEnabled);
+            await m.addColumn(users, users.twoFactorSecret);
+
+            await m.addColumn(auditLogs, auditLogs.eventAction);
+            await m.addColumn(auditLogs, auditLogs.module);
+            await m.addColumn(auditLogs, auditLogs.description);
+            await m.addColumn(auditLogs, auditLogs.result);
+            await m.addColumn(auditLogs, auditLogs.ipAddress);
+            await m.addColumn(auditLogs, auditLogs.deviceInfo);
+
+            await m.createTable(securitySettings);
+            await _createIndexes();
+            await _seedSecurityCatalogs();
+            await _seedSecuritySettings();
+          }
         },
       );
 
@@ -811,6 +872,146 @@ class AppDatabase extends _$AppDatabase {
         PaymentMethodsCompanion.insert(code: 'transfer', name: 'Transferencia'),
       ]);
     });
+  }
+
+  Future<void> _seedSecurityCatalogs() async {
+    final defaultPermissions = <(String, String)>[
+      ('registrar_venta', 'Registrar venta'),
+      ('procesar_cobro', 'Procesar cobro'),
+      ('abrir_caja', 'Abrir caja'),
+      ('cerrar_caja', 'Cerrar caja'),
+      ('ajustar_inventario', 'Ajustar inventario'),
+      ('gestionar_productos', 'Gestionar productos'),
+      ('ver_reportes', 'Ver reportes'),
+      ('cancelar_venta', 'Cancelar venta'),
+      ('aplicar_descuento', 'Aplicar descuento'),
+      ('configurar_sistema', 'Configurar sistema'),
+    ];
+
+    final defaultRoles = <(String, String, String)>[
+      ('admin', 'Administrador', 'Acceso total al sistema POS'),
+      ('cashier', 'Cajero', 'Operacion de caja y cobro'),
+      ('barista', 'Barista', 'Operacion de venta basica y producto'),
+    ];
+
+    for (final role in defaultRoles) {
+      await into(roles).insertOnConflictUpdate(
+        RolesCompanion.insert(
+          code: role.$1,
+          name: role.$2,
+          description: Value(role.$3),
+        ),
+      );
+    }
+
+    for (final permission in defaultPermissions) {
+      await into(permissions).insertOnConflictUpdate(
+        PermissionsCompanion.insert(code: permission.$1, name: permission.$2),
+      );
+    }
+
+    final roleRows = await select(roles).get();
+    final permissionRows = await select(permissions).get();
+    final roleIdByCode = <String, int>{
+      for (final role in roleRows) role.code: role.id,
+    };
+    final permissionIdByCode = <String, int>{
+      for (final permission in permissionRows) permission.code: permission.id,
+    };
+
+    final rolePermissionsMap = <String, List<String>>{
+      'admin': defaultPermissions.map((entry) => entry.$1).toList(),
+      'cashier': [
+        'registrar_venta',
+        'procesar_cobro',
+        'abrir_caja',
+        'cerrar_caja',
+        'cancelar_venta',
+        'aplicar_descuento',
+      ],
+      'barista': [
+        'registrar_venta',
+        'ajustar_inventario',
+      ],
+    };
+
+    for (final roleCode in rolePermissionsMap.keys) {
+      final roleId = roleIdByCode[roleCode];
+      if (roleId == null) continue;
+      for (final permissionCode in rolePermissionsMap[roleCode]!) {
+        final permissionId = permissionIdByCode[permissionCode];
+        if (permissionId == null) continue;
+        await into(rolePermissions).insertOnConflictUpdate(
+          RolePermissionsCompanion.insert(
+            roleId: roleId,
+            permissionId: permissionId,
+          ),
+        );
+      }
+    }
+
+    const adminUsername = 'admin';
+    final existingAdmin = await (select(users)
+          ..where((u) => u.username.equals(adminUsername)))
+        .getSingleOrNull();
+
+    if (existingAdmin == null) {
+      final bcryptHash =
+          BCrypt.hashpw('Admin123!', BCrypt.gensalt(logRounds: 12));
+      final adminId = await into(users).insert(
+        UsersCompanion.insert(
+          username: adminUsername,
+          email: const Value('admin@andys.cafe'),
+          fullName: 'Administrador Andy',
+          passwordHash: Value(bcryptHash),
+          passwordAlgo: const Value('bcrypt'),
+          status: const Value('active'),
+          isActive: const Value(true),
+          passwordChangedAt: Value(_utcNow()),
+        ),
+      );
+
+      final adminRoleId = roleIdByCode['admin'];
+      if (adminRoleId != null) {
+        await into(userRoles).insertOnConflictUpdate(
+          UserRolesCompanion.insert(userId: adminId, roleId: adminRoleId),
+        );
+      }
+    }
+  }
+
+  Future<void> _seedSecuritySettings() async {
+    final defaults = <(String, String, String)>[
+      ('session_expiration_minutes', '480', 'Tiempo maximo de sesion activa'),
+      (
+        'force_password_rotation',
+        'true',
+        'Solicitar cambio periodico de contrasena'
+      ),
+      (
+        'strong_password_required',
+        'true',
+        'Aplicar politica de contrasena fuerte'
+      ),
+      (
+        'two_factor_enabled',
+        'false',
+        'Activar segundo factor en autenticacion'
+      ),
+      ('mask_sensitive_data', 'true', 'Ocultar datos sensibles en pantalla'),
+      ('max_failed_attempts', '5', 'Intentos fallidos antes de bloqueo'),
+      ('lockout_minutes', '15', 'Minutos de bloqueo por seguridad'),
+    ];
+
+    for (final setting in defaults) {
+      await into(securitySettings).insertOnConflictUpdate(
+        SecuritySettingsCompanion.insert(
+          key: setting.$1,
+          value: setting.$2,
+          description: Value(setting.$3),
+        ),
+      );
+    }
   }
 
   Future<void> _createIndexes() async {
@@ -844,6 +1045,18 @@ class AppDatabase extends _$AppDatabase {
         'CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(user_id, is_active, login_at DESC);');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_row ON audit_logs(entity_table, row_uuid, created_at DESC);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_users_status ON users(status, is_active, updated_at DESC);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_users_failed_attempts ON users(failed_attempts, blocked_at);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions(role_id);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_audit_logs_security ON audit_logs(module, event_action, result, created_at DESC);');
+    await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_security_settings_key ON security_settings(key);');
     await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_sync_status_device ON sync_status(device_id);');
     await customStatement(
@@ -922,6 +1135,108 @@ class DailySalesReportRow {
   final double total;
 }
 
+class SecurityUserView {
+  const SecurityUserView({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.fullName,
+    required this.role,
+    required this.status,
+    required this.createdAt,
+    required this.lastAccessAt,
+    required this.failedAttempts,
+    required this.blockedAt,
+  });
+
+  final int id;
+  final String username;
+  final String? email;
+  final String fullName;
+  final String role;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? lastAccessAt;
+  final int failedAttempts;
+  final DateTime? blockedAt;
+}
+
+class RolePermissionView {
+  const RolePermissionView({
+    required this.roleId,
+    required this.roleCode,
+    required this.roleName,
+    required this.permissions,
+  });
+
+  final int roleId;
+  final String roleCode;
+  final String roleName;
+  final Set<String> permissions;
+}
+
+class SecurityAuditLogView {
+  const SecurityAuditLogView({
+    required this.id,
+    required this.createdAt,
+    required this.user,
+    required this.eventAction,
+    required this.module,
+    required this.description,
+    required this.result,
+    required this.ipAddress,
+    required this.deviceInfo,
+  });
+
+  final int id;
+  final DateTime createdAt;
+  final String user;
+  final String eventAction;
+  final String module;
+  final String description;
+  final String result;
+  final String ipAddress;
+  final String deviceInfo;
+}
+
+class SecurityAuditFilter {
+  const SecurityAuditFilter({
+    this.from,
+    this.to,
+    this.userId,
+    this.eventAction,
+    this.module,
+    this.search,
+    this.limit = 20,
+    this.offset = 0,
+  });
+
+  final DateTime? from;
+  final DateTime? to;
+  final int? userId;
+  final String? eventAction;
+  final String? module;
+  final String? search;
+  final int limit;
+  final int offset;
+}
+
+class SecuritySettingView {
+  const SecuritySettingView({
+    required this.key,
+    required this.value,
+    required this.description,
+    required this.updatedAt,
+    required this.updatedByUserId,
+  });
+
+  final String key;
+  final String value;
+  final String? description;
+  final DateTime updatedAt;
+  final int? updatedByUserId;
+}
+
 class _ComputedLine {
   _ComputedLine({
     required this.subtotalCents,
@@ -956,6 +1271,12 @@ class _ComputedLine {
     Receipts,
     FolioSequences,
     AuditLogs,
+    SecuritySettings,
+    Users,
+    Roles,
+    Permissions,
+    UserRoles,
+    RolePermissions,
   ],
 )
 class PosDao extends DatabaseAccessor<AppDatabase> with _$PosDaoMixin {
@@ -1629,11 +1950,688 @@ class PosDao extends DatabaseAccessor<AppDatabase> with _$PosDaoMixin {
     );
   }
 
+  Future<User?> findUserByIdentifier(String identifier) {
+    final normalized = identifier.trim().toLowerCase();
+    return (select(users)
+          ..where((u) =>
+              u.username.lower().equals(normalized) |
+              u.email.lower().equals(normalized))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<Role?> findRoleByCode(String code) {
+    return (select(roles)..where((r) => r.code.equals(code))).getSingleOrNull();
+  }
+
+  Future<int> createPendingUserAccount({
+    required String username,
+    required String? email,
+    required String fullName,
+    required String passwordHash,
+    required String roleCode,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    return transaction(() async {
+      final role = await findRoleByCode(roleCode);
+      if (role == null) {
+        throw StateError('No existe el rol solicitado: $roleCode');
+      }
+
+      final userId = await into(users).insert(
+        UsersCompanion.insert(
+          username: username,
+          email: Value(email),
+          fullName: fullName,
+          passwordHash: Value(passwordHash),
+          passwordAlgo: const Value('bcrypt'),
+          status: const Value('pending'),
+          isActive: const Value(true),
+          passwordChangedAt: Value(_utcNow()),
+        ),
+      );
+
+      await into(userRoles).insert(
+        UserRolesCompanion.insert(userId: userId, roleId: role.id),
+      );
+
+      final created =
+          await (select(users)..where((u) => u.id.equals(userId))).getSingle();
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: created.uuid,
+        action: 'insert',
+        changedByUserId: userId,
+        eventAction: 'user_registered',
+        module: 'Seguridad',
+        description: 'Nuevo usuario creado en estado pendiente.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+      );
+
+      return userId;
+    });
+  }
+
+  Future<void> closeAllActiveSessionsForUser(int userId) async {
+    await (update(userSessions)
+          ..where((s) => s.userId.equals(userId) & s.isActive.equals(true)))
+        .write(
+      UserSessionsCompanion(
+        isActive: const Value(false),
+        logoutAt: Value(_utcNow()),
+        updatedAt: Value(_utcNow()),
+        isSynced: const Value(false),
+      ),
+    );
+  }
+
+  Future<Set<String>> getPermissionCodesForUser(int userId) async {
+    final rows = await customSelect(
+      '''
+      SELECT DISTINCT p.code
+      FROM permissions p
+      INNER JOIN role_permissions rp ON rp.permission_id = p.id
+      INNER JOIN user_roles ur ON ur.role_id = rp.role_id
+      WHERE ur.user_id = ?
+      ''',
+      variables: [Variable<int>(userId)],
+      readsFrom: {permissions, rolePermissions, userRoles},
+    ).get();
+
+    return rows.map((row) => row.read<String>('code')).toSet();
+  }
+
+  Future<String?> getPrimaryRoleCodeForUser(int userId) async {
+    final row = await customSelect(
+      '''
+      SELECT r.code
+      FROM roles r
+      INNER JOIN user_roles ur ON ur.role_id = r.id
+      WHERE ur.user_id = ?
+      ORDER BY CASE r.code WHEN 'admin' THEN 0 WHEN 'cashier' THEN 1 ELSE 2 END
+      LIMIT 1
+      ''',
+      variables: [Variable<int>(userId)],
+      readsFrom: {roles, userRoles},
+    ).getSingleOrNull();
+
+    return row?.read<String>('code');
+  }
+
+  Future<void> registerFailedLoginAttempt({
+    required int userId,
+    required int maxFailedAttempts,
+    required int lockoutMinutes,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user =
+          await (select(users)..where((u) => u.id.equals(userId))).getSingle();
+      final nextAttempts = user.failedAttempts + 1;
+      final shouldBlock = nextAttempts >= maxFailedAttempts;
+      final nextStatus = shouldBlock ? 'blocked' : user.status;
+      final blockedAt = shouldBlock ? _utcNow() : null;
+
+      await (update(users)..where((u) => u.id.equals(userId))).write(
+        UsersCompanion(
+          failedAttempts: Value(nextAttempts),
+          status: Value(nextStatus),
+          blockedAt: Value(blockedAt),
+          updatedAt: Value(_utcNow()),
+          isSynced: const Value(false),
+        ),
+      );
+
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: userId,
+        eventAction: shouldBlock ? 'login_blocked' : 'login_failed',
+        module: 'Acceso',
+        description: shouldBlock
+            ? 'Usuario bloqueado por exceder intentos fallidos.'
+            : 'Intento de login fallido.',
+        result: 'failure',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+        newValues:
+            '{"failed_attempts":$nextAttempts,"status":"$nextStatus","lockout_minutes":$lockoutMinutes}',
+      );
+    });
+  }
+
+  Future<void> registerSuccessfulLogin({
+    required int userId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user =
+          await (select(users)..where((u) => u.id.equals(userId))).getSingle();
+
+      await (update(users)..where((u) => u.id.equals(userId))).write(
+        UsersCompanion(
+          status: const Value('active'),
+          failedAttempts: const Value(0),
+          blockedAt: const Value(null),
+          lastAccessAt: Value(_utcNow()),
+          updatedAt: Value(_utcNow()),
+          isSynced: const Value(false),
+        ),
+      );
+
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: userId,
+        eventAction: 'login_success',
+        module: 'Acceso',
+        description: 'Inicio de sesion exitoso.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+      );
+    });
+  }
+
+  Future<List<SecurityUserView>> listSecurityUsers() async {
+    final rows = await customSelect(
+      '''
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.full_name,
+        u.status,
+        u.created_at,
+        u.last_access_at,
+        u.failed_attempts,
+        u.blocked_at,
+        COALESCE(r.name, 'Sin rol') AS role_name
+      FROM users u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      LEFT JOIN roles r ON r.id = ur.role_id
+      WHERE u.deleted_at IS NULL
+      ORDER BY u.created_at DESC
+      ''',
+      readsFrom: {users, userRoles, roles},
+    ).get();
+
+    return rows
+        .map(
+          (row) => SecurityUserView(
+            id: row.read<int>('id'),
+            username: row.read<String>('username'),
+            email: row.data['email'] as String?,
+            fullName: row.read<String>('full_name'),
+            role: row.read<String>('role_name'),
+            status: row.read<String>('status'),
+            createdAt: row.read<DateTime>('created_at'),
+            lastAccessAt: row.data['last_access_at'] as DateTime?,
+            failedAttempts: row.read<int>('failed_attempts'),
+            blockedAt: row.data['blocked_at'] as DateTime?,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> validatePendingUser({
+    required int targetUserId,
+    required int adminUserId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user = await (select(users)
+            ..where((u) => u.id.equals(targetUserId)))
+          .getSingle();
+      await (update(users)..where((u) => u.id.equals(targetUserId))).write(
+        UsersCompanion(
+          status: const Value('active'),
+          isActive: const Value(true),
+          failedAttempts: const Value(0),
+          blockedAt: const Value(null),
+          updatedAt: Value(_utcNow()),
+          isSynced: const Value(false),
+        ),
+      );
+
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: adminUserId,
+        eventAction: 'user_validated',
+        module: 'Seguridad',
+        description: 'Usuario validado por administrador.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+        oldValues: '{"status":"${user.status}"}',
+        newValues: '{"status":"active"}',
+      );
+    });
+  }
+
+  Future<void> updateUserStatus({
+    required int targetUserId,
+    required String status,
+    required int changedByUserId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user = await (select(users)
+            ..where((u) => u.id.equals(targetUserId)))
+          .getSingle();
+      final normalizedStatus = status.trim().toLowerCase();
+      final blockedAt = normalizedStatus == 'blocked' ? _utcNow() : null;
+
+      await (update(users)..where((u) => u.id.equals(targetUserId))).write(
+        UsersCompanion(
+          status: Value(normalizedStatus),
+          isActive: Value(normalizedStatus != 'blocked'),
+          blockedAt: Value(blockedAt),
+          failedAttempts:
+              Value(normalizedStatus == 'blocked' ? user.failedAttempts : 0),
+          updatedAt: Value(_utcNow()),
+          isSynced: const Value(false),
+        ),
+      );
+
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: changedByUserId,
+        eventAction:
+            normalizedStatus == 'blocked' ? 'user_blocked' : 'user_unblocked',
+        module: 'Seguridad',
+        description: normalizedStatus == 'blocked'
+            ? 'Usuario bloqueado manualmente.'
+            : 'Usuario desbloqueado manualmente.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+        oldValues: '{"status":"${user.status}"}',
+        newValues: '{"status":"$normalizedStatus"}',
+      );
+    });
+  }
+
+  Future<void> resetUserPassword({
+    required int targetUserId,
+    required String passwordHash,
+    required String passwordAlgo,
+    required int changedByUserId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user = await (select(users)
+            ..where((u) => u.id.equals(targetUserId)))
+          .getSingle();
+
+      await (update(users)..where((u) => u.id.equals(targetUserId))).write(
+        UsersCompanion(
+          passwordHash: Value(passwordHash),
+          passwordAlgo: Value(passwordAlgo),
+          failedAttempts: const Value(0),
+          blockedAt: const Value(null),
+          forcePasswordChange: const Value(true),
+          passwordChangedAt: Value(_utcNow()),
+          status: const Value('active'),
+          updatedAt: Value(_utcNow()),
+          isSynced: const Value(false),
+        ),
+      );
+
+      await _insertAudit(
+        tableName: 'users',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: changedByUserId,
+        eventAction: 'password_reset',
+        module: 'Seguridad',
+        description: 'Contrasena restablecida por administrador.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+      );
+    });
+  }
+
+  Future<void> changeUserRole({
+    required int targetUserId,
+    required int newRoleId,
+    required int changedByUserId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final user = await (select(users)
+            ..where((u) => u.id.equals(targetUserId)))
+          .getSingle();
+      await (delete(userRoles)..where((ur) => ur.userId.equals(targetUserId)))
+          .go();
+      await into(userRoles).insert(
+        UserRolesCompanion.insert(userId: targetUserId, roleId: newRoleId),
+      );
+
+      final role = await (select(roles)..where((r) => r.id.equals(newRoleId)))
+          .getSingle();
+
+      await _insertAudit(
+        tableName: 'user_roles',
+        rowUuid: user.uuid,
+        action: 'update',
+        changedByUserId: changedByUserId,
+        eventAction: 'role_changed',
+        module: 'Seguridad',
+        description: 'Rol del usuario actualizado a ${role.code}.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+      );
+    });
+  }
+
+  Future<List<RolePermissionView>> listRolesWithPermissions() async {
+    final roleRows = await select(roles).get();
+    final rows = await customSelect(
+      '''
+      SELECT r.id AS role_id, r.code AS role_code, r.name AS role_name, p.code AS permission_code
+      FROM roles r
+      LEFT JOIN role_permissions rp ON rp.role_id = r.id
+      LEFT JOIN permissions p ON p.id = rp.permission_id
+      ORDER BY r.name, p.code
+      ''',
+      readsFrom: {roles, rolePermissions, permissions},
+    ).get();
+
+    final permissionsByRole = <int, Set<String>>{
+      for (final role in roleRows) role.id: <String>{},
+    };
+
+    for (final row in rows) {
+      final roleId = row.read<int>('role_id');
+      final permissionCode = row.data['permission_code'] as String?;
+      if (permissionCode == null || permissionCode.isEmpty) continue;
+      permissionsByRole
+          .putIfAbsent(roleId, () => <String>{})
+          .add(permissionCode);
+    }
+
+    return roleRows
+        .map(
+          (role) => RolePermissionView(
+            roleId: role.id,
+            roleCode: role.code,
+            roleName: role.name,
+            permissions: permissionsByRole[role.id] ?? <String>{},
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<Permission>> listAllPermissions() {
+    return (select(permissions)..orderBy([(p) => OrderingTerm.asc(p.code)]))
+        .get();
+  }
+
+  Future<void> replaceRolePermissions({
+    required int roleId,
+    required Set<String> permissionCodes,
+    required int changedByUserId,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    await transaction(() async {
+      final role =
+          await (select(roles)..where((r) => r.id.equals(roleId))).getSingle();
+      await (delete(rolePermissions)..where((rp) => rp.roleId.equals(roleId)))
+          .go();
+
+      if (permissionCodes.isNotEmpty) {
+        final permissionRows = await (select(permissions)
+              ..where((p) => p.code.isIn(permissionCodes.toList())))
+            .get();
+
+        for (final permission in permissionRows) {
+          await into(rolePermissions).insert(
+            RolePermissionsCompanion.insert(
+              roleId: roleId,
+              permissionId: permission.id,
+            ),
+          );
+        }
+      }
+
+      await _insertAudit(
+        tableName: 'role_permissions',
+        rowUuid: role.uuid,
+        action: 'update',
+        changedByUserId: changedByUserId,
+        eventAction: 'permissions_changed',
+        module: 'Seguridad',
+        description: 'Permisos actualizados para rol ${role.code}.',
+        result: 'success',
+        ipAddress: ipAddress,
+        deviceInfo: deviceInfo,
+        newValues:
+            '{"role":"${role.code}","permissions":${permissionCodes.toList()}}',
+      );
+    });
+  }
+
+  Future<List<SecuritySettingView>> listSecuritySettings() async {
+    final rows = await (select(securitySettings)
+          ..orderBy([(s) => OrderingTerm.asc(s.key)]))
+        .get();
+
+    return rows
+        .map(
+          (row) => SecuritySettingView(
+            key: row.key,
+            value: row.value,
+            description: row.description,
+            updatedAt: row.updatedAt,
+            updatedByUserId: row.updatedByUserId,
+          ),
+        )
+        .toList();
+  }
+
+  Future<String?> getSecuritySettingValue(String key) async {
+    final row = await (select(securitySettings)
+          ..where((s) => s.key.equals(key)))
+        .getSingleOrNull();
+    return row?.value;
+  }
+
+  Future<void> upsertSecuritySetting({
+    required String key,
+    required String value,
+    String? description,
+    int? updatedByUserId,
+  }) async {
+    await into(securitySettings).insertOnConflictUpdate(
+      SecuritySettingsCompanion.insert(
+        key: key,
+        value: value,
+        description: Value(description),
+        updatedByUserId: Value(updatedByUserId),
+        updatedAt: Value(_utcNow()),
+      ),
+    );
+  }
+
+  Future<List<SecurityAuditLogView>> querySecurityAuditLogs(
+      SecurityAuditFilter filter) async {
+    final whereParts = <String>['1 = 1'];
+    final variables = <Variable<Object>>[];
+
+    if (filter.from != null) {
+      whereParts.add('a.created_at >= ?');
+      variables.add(Variable<DateTime>(filter.from!));
+    }
+    if (filter.to != null) {
+      whereParts.add('a.created_at <= ?');
+      variables.add(Variable<DateTime>(filter.to!));
+    }
+    if (filter.userId != null) {
+      whereParts.add('a.changed_by_user_id = ?');
+      variables.add(Variable<int>(filter.userId!));
+    }
+    if (filter.eventAction != null && filter.eventAction!.isNotEmpty) {
+      whereParts.add('a.event_action = ?');
+      variables.add(Variable<String>(filter.eventAction!));
+    }
+    if (filter.module != null && filter.module!.isNotEmpty) {
+      whereParts.add('a.module = ?');
+      variables.add(Variable<String>(filter.module!));
+    }
+    if (filter.search != null && filter.search!.trim().isNotEmpty) {
+      whereParts.add(
+          '(LOWER(a.event_action) LIKE ? OR LOWER(a.module) LIKE ? OR LOWER(a.description) LIKE ? OR LOWER(COALESCE(u.full_name, u.username, \'sistema\')) LIKE ?)');
+      final wildcard = '%${filter.search!.trim().toLowerCase()}%';
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+    }
+
+    final rows = await customSelect(
+      '''
+      SELECT
+        a.id,
+        a.created_at,
+        COALESCE(u.full_name, u.username, 'Sistema') AS actor,
+        a.event_action,
+        COALESCE(a.module, 'General') AS module,
+        COALESCE(a.description, '') AS description,
+        a.result,
+        COALESCE(a.ip_address, '-') AS ip_address,
+        COALESCE(a.device_info, '-') AS device_info
+      FROM audit_logs a
+      LEFT JOIN users u ON u.id = a.changed_by_user_id
+      WHERE ${whereParts.join(' AND ')}
+      ORDER BY a.created_at DESC
+      LIMIT ? OFFSET ?
+      ''',
+      variables: [
+        ...variables,
+        Variable<int>(filter.limit),
+        Variable<int>(filter.offset),
+      ],
+      readsFrom: {auditLogs, users},
+    ).get();
+
+    return rows
+        .map(
+          (row) => SecurityAuditLogView(
+            id: row.read<int>('id'),
+            createdAt: row.read<DateTime>('created_at'),
+            user: row.read<String>('actor'),
+            eventAction: row.read<String>('event_action'),
+            module: row.read<String>('module'),
+            description: row.read<String>('description'),
+            result: row.read<String>('result'),
+            ipAddress: row.read<String>('ip_address'),
+            deviceInfo: row.read<String>('device_info'),
+          ),
+        )
+        .toList();
+  }
+
+  Future<int> countSecurityAuditLogs(SecurityAuditFilter filter) async {
+    final whereParts = <String>['1 = 1'];
+    final variables = <Variable<Object>>[];
+
+    if (filter.from != null) {
+      whereParts.add('a.created_at >= ?');
+      variables.add(Variable<DateTime>(filter.from!));
+    }
+    if (filter.to != null) {
+      whereParts.add('a.created_at <= ?');
+      variables.add(Variable<DateTime>(filter.to!));
+    }
+    if (filter.userId != null) {
+      whereParts.add('a.changed_by_user_id = ?');
+      variables.add(Variable<int>(filter.userId!));
+    }
+    if (filter.eventAction != null && filter.eventAction!.isNotEmpty) {
+      whereParts.add('a.event_action = ?');
+      variables.add(Variable<String>(filter.eventAction!));
+    }
+    if (filter.module != null && filter.module!.isNotEmpty) {
+      whereParts.add('a.module = ?');
+      variables.add(Variable<String>(filter.module!));
+    }
+    if (filter.search != null && filter.search!.trim().isNotEmpty) {
+      whereParts.add(
+          '(LOWER(a.event_action) LIKE ? OR LOWER(a.module) LIKE ? OR LOWER(a.description) LIKE ? OR LOWER(COALESCE(u.full_name, u.username, \'sistema\')) LIKE ?)');
+      final wildcard = '%${filter.search!.trim().toLowerCase()}%';
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+      variables.add(Variable<String>(wildcard));
+    }
+
+    final row = await customSelect(
+      '''
+      SELECT COUNT(*) AS total
+      FROM audit_logs a
+      LEFT JOIN users u ON u.id = a.changed_by_user_id
+      WHERE ${whereParts.join(' AND ')}
+      ''',
+      variables: variables,
+      readsFrom: {auditLogs, users},
+    ).getSingle();
+
+    return row.read<int>('total');
+  }
+
+  Future<void> registerUnauthorizedAttempt({
+    required int userId,
+    required String attemptedAction,
+    required String module,
+    String? ipAddress,
+    String? deviceInfo,
+  }) async {
+    final user = await (select(users)..where((u) => u.id.equals(userId)))
+        .getSingleOrNull();
+    await _insertAudit(
+      tableName: 'authorization',
+      rowUuid: user?.uuid ?? '-',
+      action: 'insert',
+      changedByUserId: userId,
+      eventAction: 'permission_denied',
+      module: module,
+      description: 'Intento bloqueado para accion: $attemptedAction',
+      result: 'failure',
+      ipAddress: ipAddress,
+      deviceInfo: deviceInfo,
+    );
+  }
+
   Future<void> _insertAudit({
     required String tableName,
     required String rowUuid,
     required String action,
     int? changedByUserId,
+    String? eventAction,
+    String? module,
+    String? description,
+    String? result,
+    String? ipAddress,
+    String? deviceInfo,
     String? oldValues,
     String? newValues,
     String? payloadJson,
@@ -1644,6 +2642,12 @@ class PosDao extends DatabaseAccessor<AppDatabase> with _$PosDaoMixin {
         rowUuid: rowUuid,
         action: action,
         changedByUserId: Value(changedByUserId),
+        eventAction: Value(eventAction ?? action),
+        module: Value(module),
+        description: Value(description),
+        result: Value(result ?? 'success'),
+        ipAddress: Value(ipAddress),
+        deviceInfo: Value(deviceInfo),
         oldValues: Value(oldValues),
         newValues: Value(newValues),
         payloadJson: Value(payloadJson),

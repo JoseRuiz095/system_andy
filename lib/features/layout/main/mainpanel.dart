@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:system_andy/config/routes.dart';
 import 'package:system_andy/core/theme/app_theme.dart';
+import 'package:system_andy/features/ajustes/presentation/security_settings_page.dart';
 import 'package:system_andy/features/auth/application/auth_session_controller.dart';
 import 'package:system_andy/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:system_andy/features/layout/components/main_footer.dart';
@@ -86,7 +87,9 @@ class _MainPanelState extends ConsumerState<MainPanel> {
                   children: [
                     Builder(
                       builder: (innerContext) => MainHeader(
-                        title: _currentSection.label,
+                        title: _currentSection == MainPanelSection.ajustes
+                            ? 'Seguridad del sistema'
+                            : _currentSection.label,
                         userName: user.fullName,
                         userRole: user.role,
                         onLogout: _logout,
@@ -138,11 +141,7 @@ class _MainPanelState extends ConsumerState<MainPanel> {
           icon: Icons.bar_chart_outlined,
         );
       case MainPanelSection.ajustes:
-        return const _ComingSoonView(
-          title: 'Ajustes',
-          subtitle: 'Configuraciones del sistema y usuarios.',
-          icon: Icons.settings_outlined,
-        );
+        return const SecuritySettingsPage();
     }
   }
 }

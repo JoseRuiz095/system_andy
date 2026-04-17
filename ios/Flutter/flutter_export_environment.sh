@@ -1,13 +1,12 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=F:\Programas\FlutterSDK\flutter"
-export "FLUTTER_APPLICATION_PATH=G:\Documentos\KodaSystems\Andys\system_andy"
+export "FLUTTER_ROOT=F:\Programas\flutter_windows_3.29.0-stable\flutter"
+export "FLUTTER_APPLICATION_PATH=F:\Documentos\Proyectos\KodaSystems\system_andy"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_TARGET=lib\main.dart"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=0.1.0"
 export "FLUTTER_BUILD_NUMBER=0.1.0"
-export "FLUTTER_CLI_BUILD_MODE=debug"
 export "DART_OBFUSCATION=false"
 export "TRACK_WIDGET_CREATION=true"
 export "TREE_SHAKE_ICONS=false"
